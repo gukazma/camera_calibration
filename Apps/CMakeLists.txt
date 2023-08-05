@@ -1,1 +1,1 @@
-add_subdirectory(DemoApp)
+add_subdirectory(camera_calibration)
