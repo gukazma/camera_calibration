@@ -8,7 +8,7 @@ class SingleCamera {
 public:
     SingleCamera(Eigen::MatrixXf world_coor, Eigen::MatrixXf pixel_coor, int n)
         : world_coor(world_coor), pixel_coor(pixel_coor), point_num(n),
-          P(Eigen::MatrixXf::Zero(n, 12)), M(Eigen::MatrixXf::Zero(3, 4)),
+          P(Eigen::MatrixXf::Zero(2*n, 12)), M(Eigen::MatrixXf::Zero(3, 4)),
           A(Eigen::MatrixXf::Zero(3, 3)), b(Eigen::MatrixXf::Zero(3, 1)),
           K(Eigen::MatrixXf::Zero(3, 3)), R(Eigen::MatrixXf::Zero(3, 3)),
           t(Eigen::MatrixXf::Zero(3, 1)) {}
@@ -35,7 +35,7 @@ private:
 
 void SingleCamera::composeP() {
     // homework1: 根据输入的二维点和三维点，构造P矩阵
-    for (size_t i = 0; i < point_num*2; i++) {
+    for (int i = 0; i < point_num*2; i++) {
         int c = i / 2;
 
         Eigen::MatrixXf p1 = world_coor.row(c);
@@ -43,11 +43,11 @@ void SingleCamera::composeP() {
         p2 << 0, 0, 0, 0;
 
         if (i%2 == 0) {
-            Eigen::MatrixXf p3 = pixel_coor(c, 0) * p1;
+            Eigen::MatrixXf p3 = -pixel_coor(c, 0) * p1;
             P.row(i) << p1, p2, p3;
         }
         else {
-            Eigen::MatrixXf p3 = pixel_coor(c, 1) * p1;
+            Eigen::MatrixXf p3 = -pixel_coor(c, 1) * p1;
             P.row(i) << p2, p1, p3;
         }
     }
@@ -76,20 +76,83 @@ void SingleCamera::svdP() {
 
 void SingleCamera::workIntrinsicAndExtrinsic() {
     // homework3: 求解相机的内参和外参
+    Eigen::Vector3f a1 = A.row(0), a2 = A.row(1), a3 = A.row(2);
 
-    
+    float ro = 1.0 / (a3.norm());
+    std::cout << "ro= " << ro << std::endl;
 
+    float cx = ro * ro * (a1.dot(a3));
+    float cy = ro * ro * (a2.dot(a3));
+    std::cout << "cx= " << cx << "cy= " << cy << std::endl;
+
+    Eigen::Vector3f a_cross13 = a1.cross(a3);
+    Eigen::Vector3f a_cross23 = a2.cross(a3);
+    float theta = acos(-1.0 * a_cross13.dot(a_cross23) / (a_cross13.norm() * a_cross23.norm()));
+    std::cout << "theta= " << theta << std::endl;
+
+
+    float alpha = ro * ro * a_cross13.norm() * sin(theta);
+    float beta = ro * ro * a_cross23.norm() * sin(theta);
+    std::cout << "alpha= " << alpha << " beta= " << beta << std::endl;
+
+
+    K << alpha, -alpha / tan(theta), cx, 0, beta / sin(theta), cy, 0, 0, 1;
+
+    Eigen::Vector3f r1 = a_cross23 / a_cross23.norm();
+    Eigen::Vector3f r3 = a3 / a3.norm();
+    Eigen::Vector3f r2 = r3.cross(r1);
+    R << r1, r2, r3;
+
+    t = ro * K.inverse() * b;
 
     std::cout << "K is " <<std::endl<<K<<std::endl;
     std::cout << "R is " <<std::endl<<R<<std::endl;
     std::cout << "t is " <<std::endl<<t.transpose()<<std::endl;
+
+    std::cout << "ro*M is " << std::endl << ro * M << std::endl;
+
+    Eigen::Matrix<float, 3, 4> Rt;
+
+    Rt.block<3, 3>(0, 0) = R.transpose();
+    Rt.block<3, 1>(0, 3) = t;
+
+    std::cout << "K[R t] is " << std::endl << K * Rt << std::endl;
 }
 
 void SingleCamera::selfcheck(const Eigen::MatrixXf& w_check, const Eigen::MatrixXf& c_check) {
     float average_err = DBL_MAX;
-    // homework4: 根据homework3求解得到的相机的参数，使用测试点进行验证，计算误差
+    float error       = 0.0;
 
+    Eigen::Matrix<float, 3, 4> Rt;
 
+    Rt.block<3, 3>(0, 0) = R.transpose();
+    Rt.block<3, 1>(0, 3) = t;
+    for (size_t i = 0; i < w_check.rows(); i++) {
+        Eigen::Matrix<float, 4, 1> pw;
+        pw << w_check.row(i).transpose();
+
+        Eigen::Matrix<float, 3, 1> pc;
+        pc << c_check.row(i).transpose(), 1;
+
+        Eigen::Matrix<float, 3, 1> pc_compute;
+        pc_compute = (K * Rt) * pw;
+        pc_compute = pc_compute / pc_compute(2, 0);
+        error += (pc_compute - pc).norm();
+    }
+    average_err = error / w_check.rows();
+    //// homework4: 根据homework3求解得到的相机的参数，使用测试点进行验证，计算误差
+    //for (size_t i = 0; i < w_check.rows(); i++) {
+    //    Eigen::Matrix<float, 4, 1> pw;
+    //    pw << w_check.row(i).transpose(), 1;
+    //    Eigen::Matrix<float, 3, 1> pc;
+    //    pc = c_check.row(i).transpose() , 1;
+
+    //    Eigen::Matrix<float, 3, 1> pc_compute;
+    //    pc_compute = Rt * pw;
+
+    //    error += (pc_compute - pc).norm();
+    //}
+    //average_err = error / w_check.rows();
     
     std::cout << "The average error is " << average_err << "," << std::endl;
     if (average_err > 0.1) {
