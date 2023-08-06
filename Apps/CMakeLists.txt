@@ -1,1 +1,2 @@
 add_subdirectory(camera_calibration)
+add_subdirectory(calibration_algorithm)
