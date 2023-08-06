@@ -56,8 +56,22 @@ void SingleCamera::composeP() {
 
 void SingleCamera::svdP() {
     // homework2: 根据P矩阵求解M矩阵和A、b矩阵
+    Eigen::JacobiSVD<Eigen::MatrixXf> svd(P, Eigen::ComputeFullV);
 
+    Eigen::MatrixXf V = svd.matrixV();
 
+    Eigen::MatrixXf M_vector = V.col(V.cols() - 1);
+
+    int n = 0;
+    for (size_t i = 0; i < 3; i++) {
+        for (size_t j = 0; j < 4; j++) {
+            M(i, j) = M_vector(n, 0);
+            n += 1;
+        }
+    }
+
+    A = M.block(0, 0, 3, 3);
+    b = M.col(3);
 }
 
 void SingleCamera::workIntrinsicAndExtrinsic() {
