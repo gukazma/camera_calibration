@@ -35,7 +35,22 @@ private:
 
 void SingleCamera::composeP() {
     // homework1: 根据输入的二维点和三维点，构造P矩阵
+    for (size_t i = 0; i < point_num*2; i++) {
+        int c = i / 2;
 
+        Eigen::MatrixXf p1 = world_coor.row(c);
+        Eigen::MatrixXf p2(1, 4);
+        p2 << 0, 0, 0, 0;
+
+        if (i%2 == 0) {
+            Eigen::MatrixXf p3 = pixel_coor(c, 0) * p1;
+            P.row(i) << p1, p2, p3;
+        }
+        else {
+            Eigen::MatrixXf p3 = pixel_coor(c, 1) * p1;
+            P.row(i) << p2, p1, p3;
+        }
+    }
     
 }
 
